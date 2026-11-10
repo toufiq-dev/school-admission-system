@@ -1,0 +1,19 @@
+# General
+.DS_Store
+*.swp
+*.user
+*.suo
+
+# .NET
+**/bin/
+**/obj/
+**/.vs/
+*.DotSettings.user
+
+# Node
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Env
+.env
