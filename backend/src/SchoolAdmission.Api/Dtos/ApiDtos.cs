@@ -2,38 +2,45 @@ using System.Text.Json.Serialization;
 
 namespace SchoolAdmission.Api.Dtos;
 
-public record CreateClassRequest(string? Name, int TotalSeats);
+public record CreateClassRequest(
+    [property: JsonPropertyName("name")] string? Name,
+    [property: JsonPropertyName("totalSeats")] int TotalSeats);
 
-public record CreateClassResponse(string Id, string Name, int TotalSeats);
+public record CreateClassResponse(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("totalSeats")] int TotalSeats);
 
 public record ClassResponse(
-    string Id,
-    string Name,
-    int TotalSeats,
-    int HeldSeats,
-    int ConfirmedSeats,
-    int AvailableSeats);
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("totalSeats")] int TotalSeats,
+    [property: JsonPropertyName("heldSeats")] int HeldSeats,
+    [property: JsonPropertyName("confirmedSeats")] int ConfirmedSeats,
+    [property: JsonPropertyName("availableSeats")] int AvailableSeats);
 
 public record CreateHoldResponse(
-    string HoldId,
-    string ClassId,
-    string StudentId,
-    string Status,
-    DateTime ExpiresAt);
+    [property: JsonPropertyName("holdId")] string HoldId,
+    [property: JsonPropertyName("classId")] string ClassId,
+    [property: JsonPropertyName("studentId")] string StudentId,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("expiresAt")] DateTime ExpiresAt);
 
 public record HoldResponse(
-    string HoldId,
-    string ClassId,
-    string Status,
-    DateTime ExpiresAt);
+    [property: JsonPropertyName("holdId")] string HoldId,
+    [property: JsonPropertyName("classId")] string ClassId,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("expiresAt")] DateTime ExpiresAt);
 
-public record ConfirmHoldResponse(string HoldId, string Status);
+public record ConfirmHoldResponse(
+    [property: JsonPropertyName("holdId")] string HoldId,
+    [property: JsonPropertyName("status")] string Status);
 
 public record MyHoldResponse(
-    string HoldId,
-    string ClassId,
-    string ClassName,
-    string Status,
-    DateTime ExpiresAt);
+    [property: JsonPropertyName("holdId")] string HoldId,
+    [property: JsonPropertyName("classId")] string ClassId,
+    [property: JsonPropertyName("className")] string ClassName,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("expiresAt")] DateTime ExpiresAt);
 
 public record ErrorResponse([property: JsonPropertyName("error")] string Error);
