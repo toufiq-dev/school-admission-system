@@ -32,6 +32,24 @@ builder.Services.AddHostedService<HoldExpiryBackgroundService>();
 var app = builder.Build();
 
 app.UseCors();
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new { error = "An unexpected server error occurred. Please try again." });
+        }
+    }
+});
+
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())

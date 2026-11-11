@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { cancelHold, confirmHold, createClass, createHold, getClasses, getMyHolds } from './api/client'
+import { isValidStudentId, normalizeStudentId } from './utils/studentId'
 
 const STUDENT_ID_KEY = 'studentId'
 
@@ -39,7 +40,7 @@ function friendlyError(err, fallback) {
 }
 
 export default function App() {
-  const [studentId, setStudentId] = useState(() => localStorage.getItem(STUDENT_ID_KEY) || '')
+  const [studentId, setStudentId] = useState(() => normalizeStudentId(localStorage.getItem(STUDENT_ID_KEY) || ''))
   const [className, setClassName] = useState('')
   const [totalSeats, setTotalSeats] = useState('')
   const [classes, setClasses] = useState([])
@@ -69,15 +70,20 @@ export default function App() {
   }
 
   async function refreshMyHolds(showError = false) {
-    if (!studentId.trim()) {
+    const sid = studentId.trim()
+    if (!isValidStudentId(sid)) {
       setMyHolds([])
       return
     }
+    if (showError) setBusy('refresh-holds')
     try {
-      const data = await getMyHolds(studentId.trim())
+      const data = await getMyHolds(sid)
       setMyHolds(Array.isArray(data) ? data : [])
+      if (showError) setError('')
     } catch (err) {
       if (showError) setError(friendlyError(err, 'Could not load your applications.'))
+    } finally {
+      if (showError) setBusy((b) => (b === 'refresh-holds' ? '' : b))
     }
   }
 
@@ -89,7 +95,7 @@ export default function App() {
 
   useEffect(() => {
     refreshMyHolds(false)
-    if (!studentId.trim()) return
+    if (!isValidStudentId(studentId.trim())) return
     const timer = setInterval(() => refreshMyHolds(false), 3000)
     return () => clearInterval(timer)
   }, [studentId])
@@ -146,13 +152,14 @@ export default function App() {
   async function onApply(classId) {
     setError('')
     setNotice('')
-    if (!studentId.trim()) {
-      setError('Enter a student birth registration number before applying.')
+    const sid = studentId.trim()
+    if (!isValidStudentId(sid)) {
+      setError('Enter a valid 17-digit birth registration number (digits only).')
       return
     }
     setBusy(`apply-${classId}`)
     try {
-      const hold = await createHold(classId, studentId.trim())
+      const hold = await createHold(classId, sid)
       setSelectedHoldId(hold.holdId)
       setNotice('Application submitted. Your seat is held until the timer expires.')
       await Promise.all([refreshClasses(true), refreshMyHolds(true)])
@@ -167,13 +174,14 @@ export default function App() {
   async function onConfirm(holdId) {
     setError('')
     setNotice('')
-    if (!studentId.trim()) {
-      setError('Enter the student birth registration number to confirm this application.')
+    const sid = studentId.trim()
+    if (!isValidStudentId(sid)) {
+      setError('Enter a valid 17-digit birth registration number (digits only).')
       return
     }
     setBusy(`confirm-${holdId}`)
     try {
-      await confirmHold(holdId, studentId.trim())
+      await confirmHold(holdId, sid)
       setNotice('Admission fee submitted and admission confirmed.')
       await Promise.all([refreshClasses(true), refreshMyHolds(true)])
     } catch (err) {
@@ -187,13 +195,14 @@ export default function App() {
   async function onCancel(holdId) {
     setError('')
     setNotice('')
-    if (!studentId.trim()) {
-      setError('Enter the student birth registration number to cancel this application.')
+    const sid = studentId.trim()
+    if (!isValidStudentId(sid)) {
+      setError('Enter a valid 17-digit birth registration number (digits only).')
       return
     }
     setBusy(`cancel-${holdId}`)
     try {
-      await cancelHold(holdId, studentId.trim())
+      await cancelHold(holdId, sid)
       setNotice('Application cancelled.')
       await Promise.all([refreshClasses(true), refreshMyHolds(true)])
     } catch (err) {
@@ -221,12 +230,12 @@ export default function App() {
               id="studentId"
               type="text"
               value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              placeholder="Enter student birth registration number"
+              onChange={(e) => setStudentId(normalizeStudentId(e.target.value))}
+              placeholder="Enter 17-digit birth registration number" maxLength={17} inputMode="numeric" pattern="\d{17}" autoComplete="off"
             />
           </div>
         </div>
-        <p className="muted">This identifier is used as the X-Student-Id header for applications and is saved in this browser.</p>
+        <p className="muted">This identifier is used as the X-Student-Id header for applications and is saved in this browser. It must be exactly 17 digits.</p>
       </section>
 
       <section className="card">
@@ -316,8 +325,13 @@ export default function App() {
 
       <section className="card">
         <h2>My Applications</h2>
-        {!studentId.trim() ? (
-          <p className="muted">Enter a student birth registration number to view applications.</p>
+        <div className="actions" style={{ marginBottom: 12 }}>
+          <button onClick={() => refreshMyHolds(true)} disabled={!isValidStudentId(studentId.trim()) || busy === 'refresh-holds'}>
+            {busy === 'refresh-holds' ? 'Refreshing...' : 'Refresh Applications'}
+          </button>
+        </div>
+        {!isValidStudentId(studentId.trim()) ? (
+          <p className="muted">Enter a valid 17-digit birth registration number to view applications.</p>
         ) : myHoldsWithStatus.length === 0 ? (
           <p className="muted">No applications found for this student.</p>
         ) : (

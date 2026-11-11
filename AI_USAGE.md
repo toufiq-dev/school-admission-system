@@ -16,5 +16,9 @@
 
 ## Verification performed
 - Reviewed the implementation against the required API contract and business rules.
-- Validated `docker-compose.yml` configuration.
-- Added automated backend tests covering class creation/listing, idempotent confirmation, and concurrent hold creation under seat limits.
+- Validated `docker-compose.yml` configuration and Dockerfiles.
+- Enforced and tested 17-digit numeric student ID validation in backend and frontend.
+- Hardened hold cancellation with transactional row-level locking and added a global JSON error handler for unexpected failures.
+- Ensured "My Applications" displays all statuses for the student (including confirmed) with refresh/polling support in the UI.
+- Expanded automated backend tests (6 tests) covering class/seat responses, student ID validation, confirm idempotency and "My Applications" including confirmed holds, hold rules (duplicate/conflict/ownership/cancel/get), expiration behavior, and concurrent hold creation under seat limits.
+- Added frontend automated tests (Vitest) for student ID normalization/validation and verified frontend build/tests (`npm run build`, `npm test`) and backend tests against PostgreSQL in containers (see README/verification notes).
