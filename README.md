@@ -51,7 +51,7 @@ Backend database connection is provided via `ConnectionStrings__DefaultConnectio
 
 ## Running backend tests
 
-Backend tests are in `backend/tests/SchoolAdmission.Tests` and include a concurrency test that verifies holds do not exceed seat limits.
+Backend tests are in `backend/tests/SchoolAdmission.Tests` (6 tests) covering class/seat responses, 17-digit student ID validation, confirm idempotency and "My Applications" including confirmed holds, hold rules (duplicate/conflict/ownership/cancel/get), expiration behavior, and a concurrency test that verifies holds do not exceed seat limits.
 
 The tests run against a PostgreSQL database (default: `Host=localhost;Port=5432;Database=school_admission_test;Username=postgres;Password=postgres`). You can override with `TEST_DATABASE_URL`.
 
@@ -70,6 +70,19 @@ docker run --rm --network host -v "$PWD/backend":/src -w /src mcr.microsoft.com/
 ```
 
 > Note: when running the test container on Linux Docker networking, use the appropriate host/network settings so the container can reach PostgreSQL.
+
+## Frontend build/tests
+
+The frontend is a Vite + React app in `frontend/`.
+
+```bash
+cd frontend
+npm install
+npm run build
+npm test
+```
+
+`npm test` runs Vitest-based frontend unit tests (e.g. student birth registration number normalization/validation).
 
 ## API summary
 
