@@ -29,6 +29,7 @@ public record CreateHoldResponse(
 public record HoldResponse(
     [property: JsonPropertyName("holdId")] string HoldId,
     [property: JsonPropertyName("classId")] string ClassId,
+    [property: JsonPropertyName("studentId")] string StudentId,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("expiresAt")] DateTime ExpiresAt);
 

@@ -29,6 +29,24 @@ public class AdmissionService
 
     public int HoldDurationSeconds => _holdDurationSeconds;
 
+    private static bool TryNormalizeStudentId(string? raw, out string normalized, out string? error)
+    {
+        normalized = (raw ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            error = "X-Student-Id header is required.";
+            return false;
+        }
+        if (normalized.Length != 17 || !normalized.All(char.IsDigit))
+        {
+            error = "Student birth registration number must be exactly 17 digits.";
+            normalized = string.Empty;
+            return false;
+        }
+        error = null;
+        return true;
+    }
+
     public async Task<ServiceResult<CreateClassResponse>> CreateClassAsync(CreateClassRequest request, CancellationToken ct)
     {
         var name = request.Name?.Trim();
@@ -94,9 +112,8 @@ public class AdmissionService
 
     public async Task<ServiceResult<CreateHoldResponse>> CreateHoldAsync(string classId, string studentId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(studentId))
-            return ServiceResult<CreateHoldResponse>.Fail(400, "X-Student-Id header is required.");
-        studentId = studentId.Trim();
+        if (!TryNormalizeStudentId(studentId, out studentId, out var studentIdError))
+            return ServiceResult<CreateHoldResponse>.Fail(400, studentIdError!);
 
         var strategy = _db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -168,14 +185,13 @@ public class AdmissionService
             return ServiceResult<HoldResponse>.Fail(404, "Application not found.");
 
         await SyncHoldExpirationAsync(hold, ct);
-        return ServiceResult<HoldResponse>.Ok(new HoldResponse(hold.Id, hold.ClassId, hold.Status, hold.ExpiresAt));
+        return ServiceResult<HoldResponse>.Ok(new HoldResponse(hold.Id, hold.ClassId, hold.StudentId, hold.Status, hold.ExpiresAt));
     }
 
     public async Task<ServiceResult<ConfirmHoldResponse>> ConfirmHoldAsync(string holdId, string studentId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(studentId))
-            return ServiceResult<ConfirmHoldResponse>.Fail(400, "X-Student-Id header is required.");
-        studentId = studentId.Trim();
+        if (!TryNormalizeStudentId(studentId, out studentId, out var studentIdError))
+            return ServiceResult<ConfirmHoldResponse>.Fail(400, studentIdError!);
 
         var strategy = _db.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -230,39 +246,57 @@ public class AdmissionService
 
     public async Task<ServiceResult<bool>> CancelHoldAsync(string holdId, string studentId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(studentId))
-            return ServiceResult<bool>.Fail(400, "X-Student-Id header is required.");
-        studentId = studentId.Trim();
+        if (!TryNormalizeStudentId(studentId, out studentId, out var studentIdError))
+            return ServiceResult<bool>.Fail(400, studentIdError!);
 
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var hold = await _db.Holds.FirstOrDefaultAsync(h => h.Id == holdId, ct);
-        if (hold == null)
-            return ServiceResult<bool>.Fail(404, "Application not found.");
-        if (hold.StudentId != studentId)
-            return ServiceResult<bool>.Fail(403, "You can only cancel your own application.");
-
-        if (hold.Status == HoldStatus.Held && hold.ExpiresAt <= now)
+        var strategy = _db.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            hold.Status = HoldStatus.Expired;
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+
+            var hold = await _db.Holds
+                .FromSqlRaw("SELECT * FROM holds WHERE id = {0} FOR UPDATE", holdId)
+                .AsTracking()
+                .FirstOrDefaultAsync(ct);
+            if (hold == null)
+            {
+                await tx.RollbackAsync(ct);
+                return ServiceResult<bool>.Fail(404, "Application not found.");
+            }
+            if (hold.StudentId != studentId)
+            {
+                await tx.RollbackAsync(ct);
+                return ServiceResult<bool>.Fail(403, "You can only cancel your own application.");
+            }
+
+            if (hold.Status == HoldStatus.Held && hold.ExpiresAt <= now)
+            {
+                hold.Status = HoldStatus.Expired;
+                hold.UpdatedAt = now;
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                return ServiceResult<bool>.Fail(409, "Application has expired and cannot be cancelled.");
+            }
+
+            if (hold.Status != HoldStatus.Held)
+            {
+                await tx.RollbackAsync(ct);
+                return ServiceResult<bool>.Fail(409, "Only an active held application can be cancelled.");
+            }
+
+            hold.Status = HoldStatus.Cancelled;
             hold.UpdatedAt = now;
             await _db.SaveChangesAsync(ct);
-            return ServiceResult<bool>.Fail(409, "Application has expired and cannot be cancelled.");
-        }
-
-        if (hold.Status != HoldStatus.Held)
-            return ServiceResult<bool>.Fail(409, "Only an active held application can be cancelled.");
-
-        hold.Status = HoldStatus.Cancelled;
-        hold.UpdatedAt = now;
-        await _db.SaveChangesAsync(ct);
-        return ServiceResult<bool>.Ok(true, 204);
+            await tx.CommitAsync(ct);
+            return ServiceResult<bool>.Ok(true, 204);
+        });
     }
 
     public async Task<ServiceResult<List<MyHoldResponse>>> GetMyHoldsAsync(string studentId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(studentId))
-            return ServiceResult<List<MyHoldResponse>>.Fail(400, "X-Student-Id header is required.");
-        studentId = studentId.Trim();
+        if (!TryNormalizeStudentId(studentId, out studentId, out var studentIdError))
+            return ServiceResult<List<MyHoldResponse>>.Fail(400, studentIdError!);
 
         await ExpireOverdueHoldsAsync(ct);
         var holds = await _db.Holds

@@ -16,4 +16,4 @@
 **/.vite/
 
 # Env
-.env
+config.bat
